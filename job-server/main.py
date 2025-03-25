@@ -6,7 +6,7 @@ import uvicorn
 from loguru import logger
 
 # Import the agent
-from llm_agent import JobSearchAgent
+from llm_agent import GeminiJobSearchAgent
 
 # Configure global logging
 logger.add("fastapi_server.log", rotation="10 MB", level="INFO")
@@ -44,7 +44,7 @@ async def search_jobs(request: JobSearchRequest):
         logger.info(f"Received job search request: {request}")
 
         # Initialize agent
-        agent = JobSearchAgent()
+        agent = GeminiJobSearchAgent()
 
         # Process job search
         result = agent.process_agent_workflow(

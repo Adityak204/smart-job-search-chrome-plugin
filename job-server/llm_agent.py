@@ -1,68 +1,114 @@
 import os
-import json
-from typing import List, Dict, Union
+import google.generativeai as genai
+from typing import Dict, List, Optional
 from loguru import logger
-
-# Import utility functions
+import json
+from dotenv import load_dotenv
 from utils import string_to_company_list, advanced_job_search
 
+load_dotenv()
 
-class JobSearchAgent:
-    def __init__(self, log_file: str = "job_search_agent.log"):
+# Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+
+class GeminiJobSearchAgent:
+    def __init__(self):
+        self.system_prompt = """
+        You are an advanced job search agent that helps job seekers find relevant positions. 
+        You have access to specialized tools and should respond in EXACTLY one of these formats:
+        
+        1. TOOL_REQUEST: tool_name|input_json
+        2. FINAL_OUTPUT: json_output
+        
+        Available Tools:
+        1. string_to_company_list: Converts comma-separated company string to list
+           - Input: {"companies_string": "Company1, Company2"}
+           - Output: ["Company1", "Company2"]
+        
+        2. advanced_job_search: Finds job openings for given companies and position
+           - Input: {"companies": ["Company1", "Company2"], "position": "Job Title", "country": "Country"}
+           - Output: {"Company1": {"LinkedIn": ["url1", "url2"]}, "Company2": {"LinkedIn": ["url3"]}}
+        
+        Workflow Rules:
+        1. First use string_to_company_list to process the raw input
+        2. Then use advanced_job_search with the processed list
+        3. Finally return the results as FINAL_OUTPUT
+        
+        Important Notes:
+        - Always maintain the exact output format
+        - The country parameter defaults to "United States"
+        - Include all original companies in the output, even if no jobs found
+        - Preserve the nested structure with platform keys (LinkedIn/Glassdoor)
         """
-        Initialize JobSearchAgent with logging configuration.
+        self.chat = model.start_chat(history=[])
+        logger.info("Gemini Job Search Agent initialized")
 
-        Args:
-            log_file (str): Path to the log file
-        """
-        # Configure logger
-        logger.remove()  # Remove default logger
-        logger.add(log_file, rotation="10 MB", level="INFO")
+    def process_tool_request(self, tool_call: str) -> str:
+        """Process the tool call and return JSON result"""
+        try:
+            tool_name, input_json = tool_call.split("|", 1)
+            input_data = json.loads(input_json)
 
-        logger.info("JobSearchAgent initialized")
+            if tool_name == "string_to_company_list":
+                companies = string_to_company_list(input_data["companies_string"])
+                return json.dumps(companies)
+
+            elif tool_name == "advanced_job_search":
+                results = advanced_job_search(
+                    input_data["companies"],
+                    input_data["position"],
+                    input_data.get("country", "United States"),
+                )
+                return json.dumps(results)
+
+            else:
+                raise ValueError(f"Unknown tool: {tool_name}")
+
+        except Exception as e:
+            logger.error(f"Error processing tool: {e}")
+            return json.dumps({"error": str(e)})
 
     def process_agent_workflow(
         self, companies: str, position: str, country: str = "United States"
-    ) -> Dict[str, Union[str, List[str]]]:
-        """
-        Orchestrate the job search workflow.
-
-        Args:
-            companies (str): Comma-separated list of companies
-            position (str): Job position to search for
-            country (str, optional): Country to search jobs in. Defaults to "United States"
-
-        Returns:
-            Dict[str, Union[str, List[str]]]: Job search results
-        """
+    ) -> Dict:
+        """Orchestrate the job search using Gemini agent"""
         try:
-            logger.info(f"Starting job search workflow for {position} in {country}")
+            # Initialize conversation with system prompt
+            prompt = f"""
+            Job Search Request:
+            - Companies: {companies}
+            - Position: {position}
+            - Country: {country}
+            
+            Please process this request using the defined workflow.
+            """
 
-            # Step 1: Convert companies string to list
-            company_list = string_to_company_list(companies)
-            logger.info(f"Processed company list: {company_list}")
+            response = self.chat.send_message(self.system_prompt + prompt)
 
-            # Step 2: Perform advanced job search
-            job_results = advanced_job_search(company_list, position, country)
-            logger.success("Job search completed successfully")
+            while True:
+                content = response.text.strip()
+                logger.debug(f"Agent response: {content}")
 
-            return job_results
+                if content.startswith("TOOL_REQUEST:"):
+                    tool_call = content.split(":", 1)[1].strip()
+                    logger.info(f"Processing tool: {tool_call}")
+                    tool_result = self.process_tool_request(tool_call)
+                    response = self.chat.send_message(f"TOOL_RESULT: {tool_result}")
+
+                elif content.startswith("FINAL_OUTPUT:"):
+                    final_output = content.split(":", 1)[1].strip()
+                    logger.success("Received final output from agent")
+                    return json.loads(final_output)
+
+                else:
+                    # Guide the agent back to proper format if it deviates
+                    response = self.chat.send_message(
+                        "Please respond with either TOOL_REQUEST or FINAL_OUTPUT format. "
+                        "Remember to maintain the exact JSON structures specified."
+                    )
 
         except Exception as e:
-            logger.error(f"Error in job search workflow: {e}")
+            logger.error(f"Error in agent workflow: {e}")
             return {"error": str(e), "status": "failed"}
-
-
-# Example usage
-def main():
-    agent = JobSearchAgent()
-    results = agent.process_agent_workflow(
-        "Google, Microsoft, Amazon", "Software Engineer", "United States"
-    )
-
-    # Pretty print results
-    print(json.dumps(results, indent=2))
-
-
-if __name__ == "__main__":
-    main()

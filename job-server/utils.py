@@ -243,15 +243,3 @@ def advanced_job_search(
             }
 
     return job_search_results
-
-
-if __name__ == "__main__":
-    # Configure logging
-    logger.add("job_search.log", rotation="500 MB", level="DEBUG")
-
-    # Test the functions
-    companies = string_to_company_list("Google, Microsoft, Amazon")
-    results = advanced_job_search(companies, "Software Engineer", "United States")
-
-    # Pretty print results
-    print(json.dumps(results, indent=2))
