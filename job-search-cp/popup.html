@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Job Search Assistant</title>
+    <style>
+        body {
+            width: 400px;
+            padding: 10px;
+        }
+
+        input,
+        button {
+            margin: 5px 0;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <input type="text" id="companies" placeholder="Companies (comma-separated)" required>
+    <input type="text" id="position" placeholder="Job Position" required>
+    <input type="text" id="country" placeholder="Country (default: United States)">
+    <button id="searchBtn">Find Job Openings</button>
+    <div id="results"></div>
+    <script src="popup.js"></script>
+</body>
+
+</html>
