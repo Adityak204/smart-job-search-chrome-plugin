@@ -88,8 +88,9 @@ class GeminiJobSearchAgent:
             response = self.chat.send_message(self.system_prompt + prompt)
 
             while True:
+                logger.info(f"AGENT RESPONSE: {response.text}")
                 content = response.text.strip()
-                logger.debug(f"Agent response: {content}")
+                # logger.debug(f"Agent response: {content}")
 
                 if content.startswith("TOOL_REQUEST:"):
                     tool_call = content.split(":", 1)[1].strip()
