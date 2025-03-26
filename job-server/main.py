@@ -13,14 +13,30 @@ logger.add("fastapi_server.log", rotation="10 MB", level="INFO")
 
 app = FastAPI()
 
-# Add CORS middleware
+# Get the extension ID from your manifest
+EXTENSION_ID = "cmjebemeaofofjkcblgngnngmdmnaclm"
+
+# Add CORS middleware with proper configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "chrome-extension://*"],
+    allow_origins=[
+        "http://localhost",
+        "http://localhost:3000",
+        "http://127.0.0.1",
+        "http://127.0.0.1:8000",
+        f"chrome-extension://{EXTENSION_ID}",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+
+# Explicit OPTIONS handler for the endpoint
+@app.options("/search_jobs/")
+async def options_search_jobs():
+    return {"message": "OK"}
 
 
 class JobSearchRequest(BaseModel):
@@ -33,12 +49,6 @@ class JobSearchRequest(BaseModel):
 async def search_jobs(request: JobSearchRequest):
     """
     Endpoint for job search
-
-    Args:
-        request (JobSearchRequest): Job search parameters
-
-    Returns:
-        Dict[str, Dict[str, List[str]]]: Job search results
     """
     try:
         logger.info(f"Received job search request: {request}")
@@ -59,6 +69,5 @@ async def search_jobs(request: JobSearchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# For direct script running
 if __name__ == "__main__":
-    uvicorn.run("server.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
